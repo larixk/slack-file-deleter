@@ -9,6 +9,9 @@ Delete files through the Slack API through node.js
 2. Run `npm install` from the folder containing the repo
 
 ## Usage
+
+Before using, you need to create an access token for your Slack at https://api.slack.com/web
+
 ```
 Usage: ./index.js [options]
 
