@@ -1,0 +1,18 @@
+{
+  "name": "slack-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "commander": "^2.9.0",
+    "console.table": "^0.4.0",
+    "filesize": "^3.1.4",
+    "lodash": "^3.10.1",
+    "request": "^2.67.0"
+  }
+}
