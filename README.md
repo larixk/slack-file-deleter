@@ -1,6 +1,14 @@
 # slack-file-deleter
 Delete files through the Slack API through node.js
 
+## Installing
+
+(Requires node.js and npm)
+
+1. Download or checkout this repo. 
+2. Run `npm install` from the folder containing the repo
+
+## Usage
 ```
 Usage: ./index.js [options]
 
