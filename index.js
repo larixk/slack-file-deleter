@@ -72,7 +72,7 @@ function continueFromPage(pageNumber) {
       }
       return;
     }
-    getFromPage(pageNumber + 1);
+    continueFromPage(pageNumber + 1);
   });
 }
 
