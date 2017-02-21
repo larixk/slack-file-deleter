@@ -11,7 +11,7 @@
   "dependencies": {
     "commander": "^2.9.0",
     "console.table": "^0.4.0",
-    "filesize": "^3.1.4",
+    "human-format": "^0.7.0",
     "lodash": "^3.10.1",
     "request": "^2.67.0"
   }

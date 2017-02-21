@@ -2,7 +2,7 @@
 
 var program = require('commander');
 var request = require('request');
-var filesize = require('filesize');
+var humanFormat = require('human-format');
 var _ = require('lodash');
 require('console.table');
 
@@ -15,6 +15,7 @@ program
   .option('-t, --token <token>', 'Your Slack API token')
   .option('-l, --list', 'List all files on Slack ordered by filesize')
   .option('-x, --types <items>', 'A list of filetypes (e.g. "png,jpg,mp3") which will be deleted', list)
+  .option('-s, --size <size>','All files above the specified size will be deleted')
   .option('-d, --dry', 'Perform a dry run only')
   .parse(process.argv);
 
@@ -23,7 +24,7 @@ if (!program.token) {
   process.exit(1);
 }
 
-if (!(program.list || program.types)) {
+if (!(program.list || program.types||program.size)) {
   console.error('Please specify a list of types to delete or choose to display a list of all files. Run with option -h for more info.')
   process.exit(1);
 }
@@ -35,6 +36,22 @@ if (program.types) {
   }
 }
 
+if(program.size) {
+  var parsed=humanFormat.parse.raw(program.size);
+  if (!(parsed.unit == '' || parsed.unit.toLowerCase() == 'b' || parsed.unit.toLowerCase() == 'ib')) {
+    console.error('\'',parsed.unit,'\' is not a valid unit for file sizes (valid examples: 100MiB, 42kB).');
+    process.exit(1);
+  }
+  if (parsed.unit.toLowerCase()=='b')
+    program.size=parsed.value*parsed.factor;
+  else
+    program.size=parsed.value*Math.pow(1024,Math.log(parsed.factor)/Math.log(1000))
+
+  console.log('All files with a filesize above this value will be deleted:', humanFormat(program.size, {scale: 'binary',  unit: 'B'}));
+  if (program.dry) {
+    console.log('DRY RUN: No files will actually be deleted.');
+  }
+}
 
 var allFiles = [];
 
@@ -70,6 +87,9 @@ function continueFromPage(pageNumber) {
       if (program.types && program.types.length) {
         cleanFiles(allFiles);
       }
+      if (program.size) {
+        cleanFilesAboveSize(allFiles);  
+      }
       return;
     }
     continueFromPage(pageNumber + 1);
@@ -83,7 +103,7 @@ function prettyPrint(files) {
     .reverse()
     .map(function(file) {
       return {
-        size: filesize(file.size),
+        size: humanFormat(file.size, {scale: 'binary',  unit: 'B'}),
         name: file.name
       };
     })
@@ -94,7 +114,7 @@ function prettyPrint(files) {
     return total + (file.size * 1);
   }, 0);
 
-  console.log('Total:', filesize(totalSize));
+  console.log('Total:', humanFormat(file.size, {scale: 'binary',  unit: 'B'}));
 }
 
 function cleanFiles(files) {
@@ -109,7 +129,24 @@ function cleanFiles(files) {
       deleteFile(file);
     }
   });
-  console.log('Deleted:', deletedCount + ' files (' + filesize(deletedSize) + ')');
+  console.log('Deleted:', deletedCount + ' files (' + humanFormat(deletedSize, {scale: 'binary',  unit: 'B'}) + ')');
+  if (program.dry) {
+    console.log('DRY RUN: No files were actually deleted.');
+  }
+}
+
+function cleanFilesAboveSize(files) {
+  var deletedSize = 0;
+  var deletedCount = 0;
+  console.log('Deleting files larger than',humanFormat(program.size, {scale: 'binary',  unit: 'B'}));
+  files.forEach(function (file) {
+    if (file.size >= program.size) {
+      deletedSize += file.size;
+      deletedCount++;
+      deleteFile(file);
+    }
+  });
+  console.log('Deleted:', deletedCount + ' files (' + humanFormat(deletedSize, {scale: 'binary',  unit: 'B'}) + ')');
   if (program.dry) {
     console.log('DRY RUN: No files were actually deleted.');
   }
