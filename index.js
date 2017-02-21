@@ -114,7 +114,7 @@ function prettyPrint(files) {
     return total + (file.size * 1);
   }, 0);
 
-  console.log('Total:', humanFormat(file.size, {scale: 'binary',  unit: 'B'}));
+  console.log('Total:', humanFormat(totalSize, {scale: 'binary',  unit: 'B'}));
 }
 
 function cleanFiles(files) {
