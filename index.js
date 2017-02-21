@@ -37,7 +37,12 @@ if (program.types) {
 }
 
 if(program.size) {
-  var parsed=humanFormat.parse.raw(program.size);
+  try {
+    var parsed=humanFormat.parse.raw(program.size);
+  } catch (e) {
+    console.error('\'',program.size,'\' is not a valid file size (examples: 100MiB, 42kB).')
+    process.exit(1);
+  }
   if (!(parsed.unit == '' || parsed.unit.toLowerCase() == 'b' || parsed.unit.toLowerCase() == 'ib')) {
     console.error('\'',parsed.unit,'\' is not a valid unit for file sizes (valid examples: 100MiB, 42kB).');
     process.exit(1);
