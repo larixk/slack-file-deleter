@@ -1,23 +1,35 @@
 #!/usr/bin/env node
 
-var program = require('commander');
-var request = require('request');
-var humanFormat = require('human-format');
-var _ = require('lodash');
+// CONFIG START
+
+const token = "YOUR_TOKEN";
+
+const domain = "YOUR_DOMAIN_NAME";
+
+// CONFIG END
+
+const program = require('commander');
+const request = require('request');
+const humanFormat = require('human-format');
+const _ = require('lodash');
 require('console.table');
+const async = require('async');
+const apiURL = "https://" + domain + ".slack.com/api/";
 
 function list(val) {
   return val.split(',');
 }
 
 program
-  .version('0.0.1')
-  .option('-t, --token <token>', 'Your Slack API token')
+  .version('0.0.2')
   .option('-l, --list', 'List all files on Slack ordered by filesize')
   .option('-x, --types <items>', 'A list of filetypes (e.g. "png,jpg,mp3") which will be deleted', list)
   .option('-s, --size <size>','All files above the specified size will be deleted')
-  .option('-d, --dry', 'Perform a dry run only')
+  .option('-d, --date <days>','All files last XX Days will be deleted')
+  .option('-t, --dry', 'Perform a dry run only')
   .parse(process.argv);
+
+program.token = token;
 
 if (!program.token) {
   console.error('Slack API token required. Run with option -h for more info.');
@@ -58,9 +70,53 @@ if(program.size) {
   }
 }
 
+if(program.date){
+  const dateLimit = new Date().getTime() - parseInt(program.date) * (1000 * 60 * 60 * 24);
+  getFiles();
+}
+
 var allFiles = [];
 
 continueFromPage(1);
+
+function getFiles(page, files) {
+    files = files || [];
+    page = page || 1;
+    console.log("Getting files. Page:", page);
+    request.post({url: apiURL + "files.list", form: {token: token, ts_to: dateLimit, page: page, count: 100}}, function(err, resp, body) {
+        var res = JSON.parse(resp.body);
+        var pages = res.paging.pages;
+        var currPage = res.paging.page;
+        var list = res.files;
+        if (list) {
+            files = files.concat(list);
+        }
+
+        if (currPage < pages) {
+            getFiles(currPage + 1, files);
+        } else {
+            deleteFiles(files);
+        }
+    });
+}
+
+function deleteFiles(arr) {
+    console.log("Deleting %s files", arr.length);
+    if (program.dry) {
+      return;
+    }
+    arr = arr.map(function(item) {
+        return function(callback) {
+            console.log("Deleting a file:", item.name);
+            request.post({url: apiURL + "files.delete", form:{token: token, file: item.id}}, function(err, resp, body) {
+                callback();
+            });
+        }
+    });
+    async.parallel(arr, function(err) {
+        console.log("Done");
+    })
+}
 
 function continueFromPage(pageNumber) {
   request.post({
@@ -169,7 +225,6 @@ function deleteFile(file) {
       token: program.token
     }
   }, function (error, response, body) {
-    // @TODO handle errors here
     if (error) {
       console.log(error);
     }
