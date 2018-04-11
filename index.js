@@ -1,30 +1,42 @@
 #!/usr/bin/env node
 
-var program = require('commander');
-var request = require('request');
-var humanFormat = require('human-format');
-var _ = require('lodash');
-require('console.table');
+// CONFIG START
 
+const token = "YOUR_TOKEN";
+
+const domain = "YOUR_DOMAIN_NAME";
+
+// CONFIG END
+
+const program = require('commander');
+const request = require('request');
+const humanFormat = require('human-format');
+const _ = require('lodash');
+require('console.table');
+const async = require('async');
+const apiURL = "https://" + domain + ".slack.com/api/";
+let time = 0;
 function list(val) {
   return val.split(',');
 }
 
 program
-  .version('0.0.1')
-  .option('-t, --token <token>', 'Your Slack API token')
+  .version('0.0.2')
   .option('-l, --list', 'List all files on Slack ordered by filesize')
   .option('-x, --types <items>', 'A list of filetypes (e.g. "png,jpg,mp3") which will be deleted', list)
   .option('-s, --size <size>','All files above the specified size will be deleted')
-  .option('-d, --dry', 'Perform a dry run only')
+  .option('-d, --date <days>','All files before XX Days will be deleted')
+  .option('-t, --dry', 'Perform a dry run only')
   .parse(process.argv);
+
+program.token = token;
 
 if (!program.token) {
   console.error('Slack API token required. Run with option -h for more info.');
   process.exit(1);
 }
 
-if (!(program.list || program.types||program.size)) {
+if (!(program.list || program.types||program.size || program.date)) {
   console.error('Please specify a list of types to delete or choose to display a list of all files. Run with option -h for more info.')
   process.exit(1);
 }
@@ -58,47 +70,100 @@ if(program.size) {
   }
 }
 
-var allFiles = [];
 
+
+var allFiles = [];
 continueFromPage(1);
 
-function continueFromPage(pageNumber) {
-  request.post({
-    url: 'https://slack.com/api/files.list',
-    form: {
-      count: 100,
-      page: pageNumber,
-      token: program.token
-    }
-  }, function (error, response, body) {
-    if (error || response.statusCode !== 200) {
-      console.error("Error connecting to slack:", error);
-      process.exit(1);
-      return;
-    }
-    body = JSON.parse(body);
-    if (body.error) {
-      console.error("Error connecting to slack:", body.error);
-      process.exit(1);
-    }
 
-    console.log("Fetching files:", Math.round(100 * body.paging.page / body.paging.pages) + '%');
-    allFiles = allFiles.concat(body.files);
-    if (body.paging.page === body.paging.pages) {
-      if (program.list) {
-        prettyPrint(allFiles);
+function continueFromPage(pageNumber) {
+  if(program.date){
+    let d = new Date();
+    let daysAgo = d.setDate(d.getDate() - program.date);
+    request.post({
+      url: 'https://slack.com/api/files.list',
+      form: {
+        count: 100,
+        page: pageNumber,
+        token: program.token,
+        ts_to: Math.round(daysAgo / 1000),
+      }
+    }, function (error, response, body) {
+      if (error || response.statusCode !== 200) {
+        console.error("Error connecting to slack:", error);
+        process.exit(1);
         return;
       }
-      if (program.types && program.types.length) {
-        cleanFiles(allFiles);
+      body = JSON.parse(body);
+      let maxPages = body.paging.pages;
+      if(maxPages === 0){
+        console.error("No Files found");
+        process.exit(1);
+        return;
       }
-      if (program.size) {
-        cleanFilesAboveSize(allFiles);  
+      if (body.error) {
+        console.error("Error connecting to slack:", body.error);
+        process.exit(1);
       }
-      return;
-    }
-    continueFromPage(pageNumber + 1);
-  });
+
+      console.log("Fetching files:", Math.round(100 * body.paging.page / body.paging.pages) + '%');
+      allFiles = allFiles.concat(body.files);
+      if (body.paging.page === body.paging.pages) {
+        if (program.list) {
+          prettyPrint(allFiles);
+          return;
+        }
+        if(program.data){
+          cleanFiles(allFiles);
+        }
+        if (program.types && program.types.length) {
+          cleanFiles(allFiles);
+        }
+        if (program.size) {
+          cleanFilesAboveSize(allFiles);  
+        }
+        return;
+      }
+      continueFromPage(pageNumber + 1);
+    });
+  }else{
+    request.post({
+      url: 'https://slack.com/api/files.list',
+      form: {
+        count: 100,
+        page: pageNumber,
+        token: program.token,
+      }
+    }, function (error, response, body) {
+      if (error || response.statusCode !== 200) {
+        console.error("Error connecting to slack:", error);
+        process.exit(1);
+        return;
+      }
+      body = JSON.parse(body);
+      if (body.error) {
+        console.error("Error connecting to slack:", body.error);
+        process.exit(1);
+      }
+
+      console.log("Fetching files:", Math.round(100 * body.paging.page / body.paging.pages) + '%');
+      allFiles = allFiles.concat(body.files);
+      if (body.paging.page === body.paging.pages) {
+        if (program.list) {
+          prettyPrint(allFiles);
+          return;
+        }
+        if (program.types && program.types.length) {
+          cleanFiles(allFiles);
+        }
+        if (program.size) {
+          cleanFilesAboveSize(allFiles);  
+        }
+        return;
+      }
+      continueFromPage(pageNumber + 1);
+    });
+  }
 }
 
 
@@ -169,7 +234,6 @@ function deleteFile(file) {
       token: program.token
     }
   }, function (error, response, body) {
-    // @TODO handle errors here
     if (error) {
       console.log(error);
     }
